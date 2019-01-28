@@ -1,9 +1,10 @@
 package com.example.roomexample;
 
 import android.app.Application;
-import android.arch.persistence.room.Room;
 
 import com.example.roomexample.database.DogDatabase;
+
+import androidx.room.Room;
 
 public class App extends Application {
  

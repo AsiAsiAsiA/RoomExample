@@ -1,31 +1,32 @@
 package com.example.roomexample.database;
 
-import android.arch.persistence.room.Dao;
-import android.arch.persistence.room.Delete;
-import android.arch.persistence.room.Insert;
-import android.arch.persistence.room.Query;
-import android.arch.persistence.room.Update;
 
-import com.example.roomexample.database.Dog;
 
 import java.util.List;
 
+import androidx.room.Dao;
+import androidx.room.Delete;
+import androidx.room.Insert;
+import androidx.room.Query;
+import androidx.room.Update;
+import io.reactivex.Completable;
+import io.reactivex.Flowable;
+import io.reactivex.Single;
+
 @Dao
 public interface DogDAO {
- 
-   @Query("SELECT * FROM dog ")
-   List<Dog> getAll();
- 
-   @Query("SELECT * FROM dog WHERE _id = :id")
-   Dog getById(int id);
- 
-   @Insert
-   void insert(Dog dog);
- 
-   @Update
-   void update(Dog dog);
- 
-   @Delete
-   void delete(Dog dog);
- 
+    @Query("SELECT * FROM dog ")
+    Flowable<List<Dog>> getAll();
+
+    @Query("SELECT * FROM dog WHERE _id = :id")
+    Single<Dog> getById(int id);
+
+    @Insert
+    Completable insert(Dog dog);
+
+    @Update
+    Completable update(Dog dog);
+
+    @Delete
+    Completable delete(Dog dog);
 }

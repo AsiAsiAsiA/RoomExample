@@ -2,9 +2,6 @@ package com.example.roomexample;
 
 import android.content.Intent;
 import android.os.Bundle;
-import android.support.v7.app.AppCompatActivity;
-import android.support.v7.widget.LinearLayoutManager;
-import android.support.v7.widget.RecyclerView;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.Toast;
@@ -13,15 +10,25 @@ import com.example.roomexample.database.Dog;
 import com.example.roomexample.database.DogDAO;
 import com.example.roomexample.database.DogDatabase;
 
+import java.util.ArrayList;
 import java.util.List;
 
+import androidx.appcompat.app.AppCompatActivity;
+import androidx.recyclerview.widget.LinearLayoutManager;
+import androidx.recyclerview.widget.RecyclerView;
+import io.reactivex.android.schedulers.AndroidSchedulers;
+import io.reactivex.disposables.CompositeDisposable;
+import io.reactivex.disposables.Disposable;
+import io.reactivex.schedulers.Schedulers;
+
 public class MainActivity extends AppCompatActivity implements DogAdapter.ItemClickListener, DogAdapter.ItemLongClickListener {
-    private RecyclerView recyclerView;
     private DogAdapter dogAdapter;
     private Button btnOk;
     private EditText etName, etAge;
     DogDatabase db;
     DogDAO dogDAO;
+    private List<Dog> listDogs;
+    CompositeDisposable compositeDisposable;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -30,6 +37,8 @@ public class MainActivity extends AppCompatActivity implements DogAdapter.ItemCl
 
         db = App.getInstance().getDatabase();
         dogDAO = db.dogDao();
+
+        compositeDisposable = new CompositeDisposable();
 
         initViews();
     }
@@ -40,30 +49,49 @@ public class MainActivity extends AppCompatActivity implements DogAdapter.ItemCl
         btnOk = findViewById(R.id.btnCreate);
         btnOk.setOnClickListener((v) ->
                 addDog());
-        recyclerView = findViewById(R.id.recyclerView);
 
+        listDogs = new ArrayList<>();
+        RecyclerView recyclerView = findViewById(R.id.recyclerView);
         recyclerView.setLayoutManager(new LinearLayoutManager(this));
-        dogAdapter = new DogAdapter(dogDAO.getAll());
+        dogAdapter = new DogAdapter(listDogs);
         dogAdapter.setItemClickListener(this);
         dogAdapter.setItemLongClickListener(this);
         recyclerView.setAdapter(dogAdapter);
+
+        Disposable disposable = dogDAO.getAll()
+                .observeOn(AndroidSchedulers.mainThread())
+                .subscribe(listDogs ->
+                        dogAdapter.setDogs(listDogs)
+                );
+        compositeDisposable.add(disposable);
     }
 
     private void addDog() {
         String name = etName.getText().toString();
         int age = Integer.parseInt(etAge.getText().toString());
         Dog dog = new Dog(name, age);
-        dogDAO.insert(dog);
 
-        dogAdapter.setDogs(dogDAO.getAll());
-        Toast.makeText(this,"Success create " + dog.getName(),Toast.LENGTH_SHORT).show();
+        Disposable disposable = dogDAO.insert(dog)
+                .subscribeOn(Schedulers.io())
+                .observeOn(AndroidSchedulers.mainThread())
+                .subscribe(() ->
+                        Toast.makeText(this,
+                                "Success create " + dog.getName(),
+                                Toast.LENGTH_SHORT).show());
+
+        compositeDisposable.add(disposable);
     }
 
 
     @Override
     public void onClick(int id) {
-        String read = dogDAO.getById(id).toString();
-        Toast.makeText(this, read, Toast.LENGTH_SHORT).show();
+        Disposable disposable = dogDAO.getById(id)
+                .subscribeOn(Schedulers.io())
+                .observeOn(AndroidSchedulers.mainThread())
+                .subscribe(dog ->
+                        Toast.makeText(this, dog.toString(), Toast.LENGTH_SHORT).show());
+
+        compositeDisposable.add(disposable);
     }
 
     @Override
@@ -71,5 +99,11 @@ public class MainActivity extends AppCompatActivity implements DogAdapter.ItemCl
         Intent intent = new Intent(this, EditActivity.class);
         intent.putExtra("_id", id);
         startActivity(intent);
+    }
+
+    @Override
+    protected void onDestroy() {
+        compositeDisposable.dispose();
+        super.onDestroy();
     }
 }

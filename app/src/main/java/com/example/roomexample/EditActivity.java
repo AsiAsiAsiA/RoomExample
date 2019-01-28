@@ -1,7 +1,6 @@
 package com.example.roomexample;
 
 import android.content.Intent;
-import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.widget.Button;
 import android.widget.EditText;
@@ -12,13 +11,19 @@ import com.example.roomexample.database.Dog;
 import com.example.roomexample.database.DogDAO;
 import com.example.roomexample.database.DogDatabase;
 
+import androidx.appcompat.app.AppCompatActivity;
+import io.reactivex.android.schedulers.AndroidSchedulers;
+import io.reactivex.disposables.CompositeDisposable;
+import io.reactivex.schedulers.Schedulers;
+
 public class EditActivity extends AppCompatActivity {
     private int id;
     DogDatabase db;
     DogDAO dogDAO;
-    private Button btnUpdate,btnDelete;
+    private Button btnUpdate, btnDelete;
     private EditText etName, etAge;
     private TextView tvID;
+    CompositeDisposable compositeDisposable;
 
     private Dog dog;
 
@@ -28,10 +33,11 @@ public class EditActivity extends AppCompatActivity {
         setContentView(R.layout.activity_edit);
 
         Intent intent = getIntent();
-        id = intent.getIntExtra("_id",0);
+        id = intent.getIntExtra("_id", 0);
 
         db = App.getInstance().getDatabase();
         dogDAO = db.dogDao();
+        compositeDisposable = new CompositeDisposable();
 
         initViews();
         updateViews();
@@ -46,30 +52,52 @@ public class EditActivity extends AppCompatActivity {
 
         updateViews();
 
-        btnDelete.setOnClickListener((v)-> {
-            dogDAO.delete(dog);
-            Toast.makeText(this,"Delete " + dog.getName(),Toast.LENGTH_SHORT).show();
-            startActivity(new Intent(this,MainActivity.class));
-        });
-
-        btnUpdate.setOnClickListener((v)->
-            updateDog()
+        btnDelete.setOnClickListener((v) ->
+                compositeDisposable.add(
+                        dogDAO.delete(dog)
+                                .subscribeOn(Schedulers.io())
+                                .observeOn(AndroidSchedulers.mainThread())
+                                .subscribe(() -> {
+                                    Toast.makeText(this,
+                                            "Delete " + dog.getName(),
+                                            Toast.LENGTH_SHORT).show();
+                                    startActivity(new Intent(this, MainActivity.class));
+                                }))
         );
+
+        btnUpdate.setOnClickListener((v) -> updateDog());
     }
 
     private void updateDog() {
         dog.setName(etName.getText().toString());
         dog.setAge(Integer.parseInt(etAge.getText().toString()));
-        dogDAO.update(dog);
-        Toast.makeText(this,"Update " + dog.getName(),Toast.LENGTH_SHORT).show();
-        startActivity(new Intent(this,MainActivity.class));
+        compositeDisposable.add(dogDAO.update(dog)
+                .subscribeOn(Schedulers.io())
+                .observeOn(AndroidSchedulers.mainThread())
+                .subscribe(() -> {
+                    Toast.makeText(this,
+                            "Update " + dog.getName(),
+                            Toast.LENGTH_SHORT).show();
+                    startActivity(new Intent(this, MainActivity.class));
+                }));
     }
 
 
     private void updateViews() {
-        dog = dogDAO.getById(id);
-        tvID.setText("ID: " + dog.get_id());
-        etName.setText(dog.getName());
-        etAge.setText(dog.getAge()+"");
+        compositeDisposable.add(dogDAO.getById(id)
+                .subscribeOn(Schedulers.io())
+                .observeOn(AndroidSchedulers.mainThread())
+                .subscribe(dog -> {
+                    this.dog = dog;
+                    tvID.setText("ID: " + dog.get_id());
+                    etName.setText(dog.getName());
+                    etAge.setText(dog.getAge() + "");
+                }));
+    }
+
+    @Override
+    protected void onDestroy() {
+        compositeDisposable.dispose();
+        super.onDestroy();
     }
 }
